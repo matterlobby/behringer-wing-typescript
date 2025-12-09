@@ -412,21 +412,21 @@ export class WingNodeData {
   /**
    * Indicates whether the payload contains a native string value.
    */
-  public hasString(): boolean {
+  public isString(): boolean {
     return this.stringValue !== undefined;
   }
 
   /**
    * Indicates whether the payload contains a native float value.
    */
-  public hasFloat(): boolean {
+  public isFloat(): boolean {
     return this.floatValue !== undefined;
   }
 
   /**
    * Indicates whether the payload contains a native integer value.
    */
-  public hasInt(): boolean {
+  public isInt(): boolean {
     return this.intValue !== undefined;
   }
 }
