@@ -13,9 +13,9 @@ next.
 ## Installation
 
 ```bash
-npm install libwing-typescript
+npm install behringer-wing
 # or
-pnpm add libwing-typescript
+pnpm add behringer-wing
 ```
 
 Node.js 18+ is required because the library relies on the modern `net`/`dgram` APIs and Promise-based
@@ -26,7 +26,7 @@ infrastructure.
 ### Discover consoles
 
 ```ts
-import { Wing } from 'libwing-typescript';
+import { Wing } from 'behringer-wing';
 
 async function listConsoles() {
   const consoles = await Wing.scan();
@@ -39,7 +39,7 @@ async function listConsoles() {
 ### Read a property once
 
 ```ts
-import { Wing } from 'libwing-typescript';
+import { Wing } from 'behringer-wing';
 
 async function readProperty() {
   const nodeId = Wing.nameToId('/$stat/time');
