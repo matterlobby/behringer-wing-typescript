@@ -1,0 +1,37 @@
+{
+  "name": "libwing-typescript",
+  "version": "0.1.0",
+  "description": "TypeScript client for the Behringer Wing digital mixer",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "examples:discover": "ts-node --project tsconfig.examples.json examples/discover.ts",
+    "examples:read": "ts-node --project tsconfig.examples.json examples/read.ts"
+  },
+  "keywords": [
+    "behringer",
+    "wing",
+    "audio",
+    "mixer",
+    "typescript",
+    "node"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "data/propmap.jsonl",
+    "README.md"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
