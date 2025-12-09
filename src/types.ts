@@ -1,5 +1,8 @@
 import { Buffer } from 'node:buffer';
 
+/**
+ * The data categories a Wing node can represent.
+ */
 export enum NodeType {
   Node = 0,
   LinearFloat = 1,
@@ -11,6 +14,9 @@ export enum NodeType {
   String = 7,
 }
 
+/**
+ * Measurement units associated with certain numeric nodes.
+ */
 export enum NodeUnit {
   None = 0,
   Db = 1,
@@ -22,16 +28,25 @@ export enum NodeUnit {
   Octaves = 7,
 }
 
+/**
+ * Represents one selectable item of a string enumeration node.
+ */
 export interface StringEnumItem {
   item: string;
   longItem?: string;
 }
 
+/**
+ * Represents one selectable item of a float enumeration node.
+ */
 export interface FloatEnumItem {
   item: number;
   longItem?: string;
 }
 
+/**
+ * Immutable representation of a Wing property definition including type metadata and limits.
+ */
 export class WingNodeDef {
   constructor(
     public id: number,
@@ -53,6 +68,9 @@ export class WingNodeDef {
     public raw: Buffer = Buffer.alloc(0),
   ) {}
 
+  /**
+   * Parses a raw Wing node-definition payload into a structured object.
+   */
   public static fromBytes(raw: Buffer): WingNodeDef {
     let offset = 0;
 
@@ -217,6 +235,9 @@ export class WingNodeDef {
     }
   }
 
+  /**
+   * Returns a deep copy so callers can mutate without affecting the cache.
+   */
   public clone(): WingNodeDef {
     return new WingNodeDef(
       this.id,
@@ -239,6 +260,9 @@ export class WingNodeDef {
     );
   }
 
+  /**
+   * Generates a human-readable, multi-line description similar to the Rust tooling.
+   */
   public toDescription(): string {
     const lines: string[] = [];
     lines.push(`Id:        ${this.id}`);
@@ -287,6 +311,9 @@ export class WingNodeDef {
     return lines.join('\n');
   }
 
+  /**
+   * Converts the node definition to a JSON-ready object for schemas or debugging.
+   */
   public toJSON(): Record<string, unknown> {
     const result: Record<string, unknown> = {
       id: this.id,
@@ -319,6 +346,9 @@ export class WingNodeDef {
   }
 }
 
+/**
+ * Container for a single property value returned from the Wing mixer.
+ */
 export class WingNodeData {
   private readonly stringValue?: string;
   private readonly floatValue?: number;
@@ -330,18 +360,30 @@ export class WingNodeData {
     this.intValue = opts.intValue;
   }
 
+  /**
+   * Creates a data container holding a string value.
+   */
   public static withString(value: string): WingNodeData {
     return new WingNodeData({ stringValue: value });
   }
 
+  /**
+   * Creates a data container holding a float value.
+   */
   public static withFloat(value: number): WingNodeData {
     return new WingNodeData({ floatValue: value });
   }
 
+  /**
+   * Creates a data container holding an integer value.
+   */
   public static withInt(value: number): WingNodeData {
     return new WingNodeData({ intValue: value });
   }
 
+  /**
+   * Returns the stored value as string, falling back to other primitives when needed.
+   */
   public getString(): string {
     if (this.stringValue !== undefined) return this.stringValue;
     if (this.floatValue !== undefined) return this.floatValue.toString();
@@ -349,26 +391,41 @@ export class WingNodeData {
     return '';
   }
 
+  /**
+   * Returns the stored value as float, coercing integers where necessary.
+   */
   public getFloat(): number {
     if (this.floatValue !== undefined) return this.floatValue;
     if (this.intValue !== undefined) return this.intValue;
     return 0;
   }
 
+  /**
+   * Returns the stored value as integer, truncating floats when required.
+   */
   public getInt(): number {
     if (this.intValue !== undefined) return this.intValue;
     if (this.floatValue !== undefined) return Math.trunc(this.floatValue);
     return 0;
   }
 
+  /**
+   * Indicates whether the payload contains a native string value.
+   */
   public hasString(): boolean {
     return this.stringValue !== undefined;
   }
 
+  /**
+   * Indicates whether the payload contains a native float value.
+   */
   public hasFloat(): boolean {
     return this.floatValue !== undefined;
   }
 
+  /**
+   * Indicates whether the payload contains a native integer value.
+   */
   public hasInt(): boolean {
     return this.intValue !== undefined;
   }

@@ -7,6 +7,9 @@ import { getIdToDefs, getNameToDef, getNameToId } from './propmap';
 const DATA_KEEP_ALIVE_MS = 7_000;
 const METERS_KEEP_ALIVE_MS = 3_000;
 
+/**
+ * A single console that responded to discovery.
+ */
 export interface DiscoveryInfo {
   ip: string;
   name: string;
@@ -15,11 +18,17 @@ export interface DiscoveryInfo {
   firmware: string;
 }
 
+/**
+ * Possible responses emitted by {@link Wing.read}.
+ */
 export type WingResponse =
   | { type: 'request-end' }
   | { type: 'node-def'; definition: WingNodeDef }
   | { type: 'node-data'; id: number; data: WingNodeData };
 
+/**
+ * Meter selectors that require an accompanying numeric index.
+ */
 type MeterKindWithIndex =
   | 'channel'
   | 'aux'
@@ -36,19 +45,34 @@ type MeterKindWithIndex =
   | 'main2'
   | 'matrix2';
 
+/**
+ * All supported meter selectors, including index-free variants.
+ */
 type MeterKind = MeterKindWithIndex | 'monitor' | 'rta';
 
+/**
+ * Describes which meters to subscribe to in {@link Wing.requestMeter}.
+ */
 export type MeterRequest =
   | { kind: MeterKindWithIndex; index: number }
   | { kind: 'monitor' | 'rta' };
 
+/**
+ * Raw meter data payload returned from {@link Wing.readMeters}.
+ */
 export interface MeterRead {
   meterId: number;
   values: number[];
 }
 
+/**
+ * Promise handlers waiting for the next decoded byte.
+ */
 type ByteWaiter = { resolve: (value: number) => void; reject: (err: Error) => void };
 
+/**
+ * Tracks UDP socket details and pending meter reads.
+ */
 interface MeterState {
   socket: dgram.Socket;
   port: number;
@@ -58,6 +82,9 @@ interface MeterState {
   queue: MeterRead[];
 }
 
+/**
+ * High-level client for Behringer Wing mixers covering discovery, IO and data helpers.
+ */
 export class Wing {
   private readonly socket: net.Socket;
   private readonly byteQueue: number[] = [];
@@ -72,6 +99,9 @@ export class Wing {
   private meterKeepAlive?: NodeJS.Timeout;
   private meterState?: MeterState;
 
+  /**
+   * Internal constructor, use {@link connect}. Sets up socket listeners and keep-alives.
+   */
   private constructor(socket: net.Socket) {
     this.socket = socket;
     this.socket.on('data', (chunk) => this.onChunk(chunk));
@@ -80,6 +110,9 @@ export class Wing {
     this.dataKeepAlive = setInterval(() => this.sendKeepAlive(), DATA_KEEP_ALIVE_MS);
   }
 
+  /**
+   * Broadcasts a discovery probe and returns unique Wing consoles that respond.
+   */
   public static async scan(stopOnFirst = false, timeout = 500): Promise<DiscoveryInfo[]> {
     return new Promise((resolve, reject) => {
       const socket = dgram.createSocket('udp4');
@@ -90,6 +123,7 @@ export class Wing {
       let timer: NodeJS.Timeout | undefined;
 
       const cleanup = () => {
+        // Ensure timers and sockets do not linger if we exit early.
         if (timer) clearInterval(timer);
         socket.close();
       };
@@ -157,6 +191,9 @@ export class Wing {
     });
   }
 
+  /**
+   * Connects to the first discovered mixer or the provided host/IP and performs the handshake.
+   */
   public static async connect(hostOrIp?: string): Promise<Wing> {
     let target = hostOrIp;
     if (!target) {
@@ -167,9 +204,13 @@ export class Wing {
       target = devices[0].ip;
     }
     const socket = await Wing.openSocket(target);
+    // Constructor is private: only allow instances that went through the handshake.
     return new Wing(socket);
   }
 
+  /**
+   * Opens the TCP socket and writes the initial handshake bytes.
+   */
   private static openSocket(host: string): Promise<net.Socket> {
     return new Promise((resolve, reject) => {
       const socket = net.createConnection({ host, port: 2222 }, () => {
@@ -184,11 +225,15 @@ export class Wing {
     });
   }
 
+  /**
+   * Reads and decodes the next response from the console, blocking until one arrives.
+   */
   public async read(): Promise<WingResponse> {
     this.assertAlive();
     const raw: number[] = [];
     // eslint-disable-next-line no-constant-condition
     while (true) {
+      // Interpret the stream byte-by-byte; each command dictates the following payload.
       const [, cmd] = await this.decodeNext(raw);
       if (cmd <= 0x3f) {
         return { type: 'node-data', id: this.currentNodeId, data: WingNodeData.withInt(cmd) };
@@ -262,16 +307,25 @@ export class Wing {
     }
   }
 
+  /**
+   * Requests the definition metadata of a node ID; results arrive via {@link read}.
+   */
   public async requestNodeDefinition(id: number): Promise<void> {
     const buffer = this.buildIdCommand(id, 0xdd);
     await this.write(buffer);
   }
 
+  /**
+   * Requests the current value of a node ID; results arrive via {@link read}.
+   */
   public async requestNodeData(id: number): Promise<void> {
     const buffer = this.buildIdCommand(id, 0xdc);
     await this.write(buffer);
   }
 
+  /**
+   * Writes a string property to the mixer, handling the protocol framing details.
+   */
   public async setString(id: number, value: string): Promise<void> {
     const buffer = this.buildIdCommand(id);
     const payload: number[] = [];
@@ -291,6 +345,9 @@ export class Wing {
     await this.write(Buffer.concat([buffer, Buffer.from(payload)]));
   }
 
+  /**
+   * Writes a float property in big-endian IEEE754 encoding.
+   */
   public async setFloat(id: number, value: number): Promise<void> {
     const buffer = this.buildIdCommand(id, 0xd5);
     const payload = Buffer.alloc(4);
@@ -298,6 +355,9 @@ export class Wing {
     await this.write(Buffer.concat([buffer, payload]));
   }
 
+  /**
+   * Writes an integer property using the most compact encoding supported.
+   */
   public async setInt(id: number, value: number): Promise<void> {
     const buffer = this.buildIdCommand(id);
     const payload: number[] = [];
@@ -317,6 +377,9 @@ export class Wing {
     await this.write(Buffer.concat([buffer, Buffer.from(payload)]));
   }
 
+  /**
+   * Subscribes to meter streams and returns the meter request ID used in {@link readMeters}.
+   */
   public async requestMeter(meters: MeterRequest[]): Promise<number> {
     const state = await this.ensureMeterState();
     state.nextMeterId += 1;
@@ -343,17 +406,22 @@ export class Wing {
           if (!('index' in meter)) {
             throw new Error(`Meter ${meter.kind} requires index`);
           }
+          // Protocol encodes the requested channel number directly after the type byte.
           payload.push(meter.index);
         }
       }
     const tail = [0xde, 0xdf, 0xd1];
     await this.write(Buffer.from([...header, ...payload, ...tail]));
     if (!this.meterKeepAlive) {
+      // Keep-alives are required per active subscription to keep UDP data flowing.
       this.meterKeepAlive = setInterval(() => this.sendMeterKeepAlive(), METERS_KEEP_ALIVE_MS);
     }
     return meterId;
   }
 
+  /**
+   * Awaits the next batch of subscribed meter values, blocking until available.
+   */
   public async readMeters(): Promise<MeterRead> {
     const state = await this.ensureMeterState();
     if (state.queue.length > 0) {
@@ -364,14 +432,23 @@ export class Wing {
     });
   }
 
+  /**
+   * Sends a keep-alive frame manually; normally handled automatically.
+   */
   public async keepAlive(): Promise<void> {
     await this.write(Buffer.from([0xdf, 0xd1]));
   }
 
+  /**
+   * Sends a keep-alive for meter subscriptions; normally handled automatically.
+   */
   public async keepAliveMeters(): Promise<void> {
     this.sendMeterKeepAlive();
   }
 
+  /**
+   * Closes sockets and timers gracefully; safe to call multiple times.
+   */
   public async close(): Promise<void> {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -387,6 +464,9 @@ export class Wing {
     this.socket.destroy();
   }
 
+  /**
+   * Converts a path-style fullname to its numeric node ID, or parses numbers directly.
+   */
   public static nameToId(fullname: string): number | undefined {
     if (!fullname) return undefined;
     if (/^-?\d+$/.test(fullname)) {
@@ -395,14 +475,23 @@ export class Wing {
     return getNameToId(fullname);
   }
 
+  /**
+   * Returns a cloned node definition for the given fullname if it exists.
+   */
   public static nameToDef(fullname: string): WingNodeDef | undefined {
     return getNameToDef(fullname);
   }
 
+  /**
+   * Provides all known fullnames and definitions matching a numeric node ID.
+   */
   public static idToDefs(id: number): Array<{ fullname: string; definition: WingNodeDef }> | undefined {
     return getIdToDefs(id);
   }
 
+  /**
+   * Writes a raw buffer to the Wing socket and awaits completion.
+   */
   private async write(buffer: Buffer): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       this.socket.write(buffer, (err) => {
@@ -412,6 +501,9 @@ export class Wing {
     });
   }
 
+  /**
+   * Lazily creates the UDP socket for meter subscriptions and state tracking.
+   */
   private async ensureMeterState(): Promise<MeterState> {
     if (this.meterState) {
       return this.meterState;
@@ -437,11 +529,17 @@ export class Wing {
     return this.meterState;
   }
 
+  /**
+   * Sends a keep-alive frame if the connection is still active.
+   */
   private sendKeepAlive(): void {
     if (this.destroyed) return;
     this.socket.write(Buffer.from([0xdf, 0xd1]));
   }
 
+  /**
+   * Sends keep-alive frames for every active meter subscription.
+   */
   private sendMeterKeepAlive(): void {
     if (!this.meterState || this.meterState.activeIds.size === 0) return;
     const { port } = this.meterState;
@@ -461,6 +559,9 @@ export class Wing {
     }
   }
 
+  /**
+   * Parses UDP meter responses and resolves pending promises.
+   */
   private onMeterData(msg: Buffer): void {
     if (!this.meterState) return;
     if (msg.length < 4) return;
@@ -478,6 +579,9 @@ export class Wing {
     }
   }
 
+  /**
+   * Maps meter kinds to their protocol codes and index requirements.
+   */
   private meterCode(kind: MeterRequest['kind']): [number, boolean] {
     switch (kind) {
       case 'channel':
@@ -517,6 +621,9 @@ export class Wing {
     }
   }
 
+  /**
+   * Decodes the next byte/value pair from the Wing stream, respecting escapes.
+   */
   private async decodeNext(raw: number[]): Promise<[number, number]> {
     if (this.rxHasInPipe !== undefined) {
       const value = this.rxHasInPipe;
@@ -525,6 +632,7 @@ export class Wing {
       return [this.rxCurrentChannel, value];
     }
     while (true) {
+      // Maintain state machine mirroring Behringer's escaping rules.
       const byte = await this.readByte();
       if (!this.rxEsc) {
         if (byte === 0xdf) {
@@ -558,6 +666,9 @@ export class Wing {
     }
   }
 
+  /**
+   * Awaits a single byte from the TCP socket buffer.
+   */
   private readByte(): Promise<number> {
     if (this.byteQueue.length > 0) {
       return Promise.resolve(this.byteQueue.shift()!);
@@ -570,6 +681,9 @@ export class Wing {
     });
   }
 
+  /**
+   * Reads a UTF-8 string of the given length via repeated decode operations.
+   */
   private async readString(length: number, raw: number[]): Promise<string> {
     const bytes: number[] = [];
     for (let i = 0; i < length; i += 1) {
@@ -579,22 +693,34 @@ export class Wing {
     return Buffer.from(bytes).toString('utf8');
   }
 
+  /**
+   * Reads an unsigned byte via {@link decodeNext}.
+   */
   private async readU8(raw: number[]): Promise<number> {
     const [, value] = await this.decodeNext(raw);
     return value;
   }
 
+  /**
+   * Reads a big-endian unsigned 16-bit integer.
+   */
   private async readU16(raw: number[]): Promise<number> {
     const high = await this.readU8(raw);
     const low = await this.readU8(raw);
     return (high << 8) | low;
   }
 
+  /**
+   * Reads a signed 16-bit integer in big-endian order.
+   */
   private async readI16(raw: number[]): Promise<number> {
     const value = await this.readU16(raw);
     return value > 0x7fff ? value - 0x1_0000 : value;
   }
 
+  /**
+   * Reads an unsigned 32-bit integer.
+   */
   private async readU32(raw: number[]): Promise<number> {
     const b1 = await this.readU8(raw);
     const b2 = await this.readU8(raw);
@@ -603,11 +729,17 @@ export class Wing {
     return ((b1 << 24) | (b2 << 16) | (b3 << 8) | b4) >>> 0;
   }
 
+  /**
+   * Reads a signed 32-bit integer.
+   */
   private async readI32(raw: number[]): Promise<number> {
     const value = await this.readU32(raw);
     return value > 0x7fffffff ? value - 0x1_0000_0000 : value;
   }
 
+  /**
+   * Reads a 32-bit IEEE754 float.
+   */
   private async readFloat(raw: number[]): Promise<number> {
     const buffer = Buffer.alloc(4);
     buffer.writeUInt8(await this.readU8(raw), 0);
@@ -617,11 +749,17 @@ export class Wing {
     return buffer.readFloatBE(0);
   }
 
+  /**
+   * Reads a signed byte.
+   */
   private async readI8(raw: number[]): Promise<number> {
     const [, value] = await this.decodeNext(raw);
     return value > 0x7f ? value - 0x100 : value;
   }
 
+  /**
+   * Formats a node ID request payload with optional suffix command.
+   */
   private buildIdCommand(id: number, suffix?: number): Buffer {
     if (id === 0) {
       const bytes = suffix === 0xdd ? [0xda, 0xdd] : [0xda, 0xdc];
@@ -640,16 +778,23 @@ export class Wing {
     return Buffer.from(buf);
   }
 
+  /**
+   * Handles incoming TCP data chunks, resolving any blocked readers.
+   */
   private onChunk(chunk: Buffer): void {
     for (const byte of chunk.values()) {
       this.byteQueue.push(byte);
     }
     while (this.byteQueue.length && this.byteWaiters.length) {
+      // Satisfy awaiting reads in FIFO order to preserve stream semantics.
       const waiter = this.byteWaiters.shift()!;
       waiter.resolve(this.byteQueue.shift()!);
     }
   }
 
+  /**
+   * Bubbles socket errors to pending readers.
+   */
   private onError(err: Error): void {
     this.lastError = err;
     while (this.byteWaiters.length) {
@@ -658,6 +803,9 @@ export class Wing {
     }
   }
 
+  /**
+   * Cleans up when the TCP socket closes, rejecting pending readers.
+   */
   private onClose(): void {
     this.destroyed = true;
     if (this.dataKeepAlive) clearInterval(this.dataKeepAlive);
@@ -668,6 +816,9 @@ export class Wing {
     }
   }
 
+  /**
+   * Throws if the Wing instance has already been closed.
+   */
   private assertAlive(): void {
     if (this.destroyed) {
       throw this.lastError ?? new Error('Wing is closed');
