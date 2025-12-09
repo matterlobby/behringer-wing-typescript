@@ -1,4 +1,4 @@
-# libwing-typescript
+# Behringer Wing Library for TypeScript
 
 A TypeScript/Node.js client for controlling the Behringer Wing digital mixer. It mirrors the
 behaviour of the original Rust-based `libwing` crate and supports device discovery, property
