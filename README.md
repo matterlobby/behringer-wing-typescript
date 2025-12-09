@@ -89,6 +89,7 @@ The examples are TypeScript files under `examples/`. They can be executed with:
 ```bash
 npm run examples:discover
 npm run examples:read -- /$stat/time
+npm run examples:monitor
 ```
 
 ## Publishing checklist

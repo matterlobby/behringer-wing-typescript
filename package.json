@@ -9,7 +9,8 @@
     "clean": "rm -rf dist",
     "lint": "tsc -p tsconfig.json --noEmit",
     "examples:discover": "ts-node --project tsconfig.examples.json examples/discover.ts",
-    "examples:read": "ts-node --project tsconfig.examples.json examples/read.ts"
+    "examples:read": "ts-node --project tsconfig.examples.json examples/read.ts",
+    "examples:monitor": "ts-node --project tsconfig.examples.json examples/monitor.ts"
   },
   "keywords": [
     "behringer",
