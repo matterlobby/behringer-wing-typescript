@@ -26,52 +26,31 @@ async function main(): Promise<void> {
   const wing = await Wing.connect();
 
   try {
-    // Request data for the given node id. For real node trees this should
-    // trigger a stream of "node-data" responses until a "request-end".
-    await wing.requestNodeData(nodeId);
-
-    let nodeDataCount = 0;
     const start = Date.now();
+    const entries = await wing.getNodeTree(nodeId);
+    const durationMs = Date.now() - start;
 
-    // Read responses until we see a "request-end" marker from the console.
-    // We deliberately do not filter by id here, because a tree request is
-    // expected to return many different ids (all children of this node).
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const response = await wing.read();
+    console.log(
+      `Request finished: received ${entries.length} node-data entries in ${durationMs} ms.`,
+    );
 
-      if (response.type === 'node-data') {
-        nodeDataCount += 1;
-
-        // Optionally show the first few entries for inspection.
-        if (nodeDataCount <= 5) {
-          const valuePreview = (() => {
-            if (response.data.isString()) {
-              return response.data.getString();
-            }
-            if (response.data.isFloat()) {
-              return response.data.getFloat().toString();
-            }
-            if (response.data.isInt()) {
-              return response.data.getInt().toString();
-            }
-            return '';
-          })();
-
-          console.log(
-            `node-data #${nodeDataCount}: id=${response.id}, value=${valuePreview}`,
-          );
+    entries.slice(0, 100).forEach((entry, index) => {
+      const valuePreview = (() => {
+        if (entry.data.isString()) {
+          return entry.data.getString();
         }
-      } else if (response.type === 'request-end') {
-        const durationMs = Date.now() - start;
-        console.log(
-          `Request finished: received ${nodeDataCount} node-data entries in ${durationMs} ms.`,
-        );
-        break;
-      }
+        if (entry.data.isFloat()) {
+          return entry.data.getFloat().toString();
+        }
+        if (entry.data.isInt()) {
+          return entry.data.getInt().toString();
+        }
+        return '';
+      })();
 
-      // Ignore other response types (node-def, unsolicited updates, etc.) for now.
-    }
+      const fullname = entry.fullname ?? '(unknown)';
+      console.log(`#${index + 1} ${fullname} (${entry.id}) => ${valuePreview}`);
+    });
   } finally {
     await wing.close();
   }

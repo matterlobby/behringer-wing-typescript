@@ -430,3 +430,13 @@ export class WingNodeData {
     return this.intValue !== undefined;
   }
 }
+
+/**
+ * Represents one entry of a node tree read via {@link Wing.getNodeTree}.
+ */
+export interface WingTreeEntry {
+  id: number;
+  fullname?: string;
+  definition?: WingNodeDef;
+  data: WingNodeData;
+}

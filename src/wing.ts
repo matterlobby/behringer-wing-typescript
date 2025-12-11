@@ -1,7 +1,7 @@
 import net, { AddressInfo } from 'node:net';
 import dgram from 'node:dgram';
 import { Buffer } from 'node:buffer';
-import { WingNodeData, WingNodeDef } from './types';
+import { WingNodeData, WingNodeDef, WingTreeEntry } from './types';
 import { getIdToDefs, getNameToDef, getNameToId } from './propmap';
 
 const DATA_KEEP_ALIVE_MS = 7_000;
@@ -305,6 +305,53 @@ export class Wing {
         return { type: 'node-def', definition };
       }
     }
+  }
+
+  /**
+   * Requests all child node values of the provided node path or ID in a single stream.
+   */
+  public async getNodeTree(node: string | number): Promise<WingTreeEntry[]> {
+    const resolvedId = typeof node === 'number' ? node : Wing.nameToId(node);
+    if (resolvedId === undefined) {
+      throw new Error(`Unknown node ${node}`);
+    }
+
+    await this.requestNodeData(resolvedId);
+    const entries: WingTreeEntry[] = [];
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const response = await this.read();
+      if (response.type === 'request-end') {
+        return entries;
+      }
+      if (response.type !== 'node-data') {
+        continue;
+      }
+      const defs = Wing.idToDefs(response.id);
+      const fullname = defs && defs.length > 0 ? defs[0].fullname : undefined;
+      const definition = defs && defs.length > 0 ? defs[0].definition : undefined;
+      entries.push({
+        id: response.id,
+        fullname,
+        definition,
+        data: response.data,
+      });
+    }
+  }
+
+  /**
+   * Convenience helper returning a map indexed by fullname for known tree entries.
+   */
+  public async getNodeTreeMap(node: string | number): Promise<Record<string, WingNodeData>> {
+    const entries = await this.getNodeTree(node);
+    const result: Record<string, WingNodeData> = {};
+    for (const entry of entries) {
+      if (entry.fullname) {
+        result[entry.fullname] = entry.data;
+      }
+    }
+    return result;
   }
 
   /**
