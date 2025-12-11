@@ -266,6 +266,7 @@ export class WingNodeDef {
   public toDescription(): string {
     const lines: string[] = [];
     lines.push(`Id:        ${this.id}`);
+    lines.push(`ParentId:  ${this.parentId}`);
     lines.push(`Read-only: ${this.readOnly ? 'yes' : 'no'}`);
     if (this.index) {
       lines.push(`Index:     ${this.index}`);
@@ -317,6 +318,7 @@ export class WingNodeDef {
   public toJSON(): Record<string, unknown> {
     const result: Record<string, unknown> = {
       id: this.id,
+      parent_id: this.parentId,
       type: NodeType[this.nodeType].toLowerCase(),
     };
     if (this.index) result.index = this.index;
