@@ -84,6 +84,13 @@ npm install
 npm run build
 ```
 
+The property map (`src/propmap-data.ts`) is generated from `data/propmap.jsonl`. Regenerate the TypeScript
+module whenever the JSONL changes:
+
+```bash
+npm run generate:propmap
+```
+
 The examples are TypeScript files under `examples/`. They can be executed with:
 
 ```bash

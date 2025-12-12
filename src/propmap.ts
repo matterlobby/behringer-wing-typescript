@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import {
   FloatEnumItem,
   NodeType,
@@ -7,6 +5,7 @@ import {
   StringEnumItem,
   WingNodeDef,
 } from './types';
+import { PROP_MAP_LINES } from './propmap-data';
 
 interface PropMapEntry {
   fullname: string;
@@ -23,8 +22,6 @@ interface PropMapEntry {
   maxstringlen?: number | null;
   items?: Array<{ item: string | number; longitem?: string }>;
 }
-
-const PROP_MAP_FILE = join(__dirname, '..', 'data', 'propmap.jsonl');
 
 let loaded = false;
 const nameToDef = new Map<string, WingNodeDef>();
@@ -116,9 +113,7 @@ function convertEntry(entry: PropMapEntry): WingNodeDef {
 
 function ensureLoaded(): void {
   if (loaded) return;
-  const fileContent = readFileSync(PROP_MAP_FILE, 'utf8');
-  const lines = fileContent.split(/\r?\n/).filter((line) => line.trim().length > 0);
-  for (const line of lines) {
+  for (const line of PROP_MAP_LINES) {
     const parsed: PropMapEntry = JSON.parse(line);
     const def = convertEntry(parsed);
     nameToDef.set(parsed.fullname, def);

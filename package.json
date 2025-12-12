@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist",
     "lint": "tsc -p tsconfig.json --noEmit",
+    "generate:propmap": "node scripts/generate-propmap-data.mjs",
     "examples:discover": "ts-node --project tsconfig.examples.json examples/discover.ts",
     "examples:read": "ts-node --project tsconfig.examples.json examples/read.ts",
     "examples:monitor": "ts-node --project tsconfig.examples.json examples/monitor.ts",
