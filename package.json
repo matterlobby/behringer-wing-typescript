@@ -1,6 +1,6 @@
 {
   "name": "behringer-wing",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "TypeScript client for the Behringer Wing digital mixer",
   "repository": {
     "type": "git",
