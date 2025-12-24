@@ -2,13 +2,28 @@
   "name": "behringer-wing",
   "version": "0.1.0",
   "description": "TypeScript client for the Behringer Wing digital mixer",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matterlobby/behringer-wing-typescript.git"
+  },
+  "homepage": "https://github.com/matterlobby/behringer-wing-typescript#readme",
+  "bugs": {
+    "url": "https://github.com/matterlobby/behringer-wing-typescript/issues"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist",
     "lint": "tsc -p tsconfig.json --noEmit",
     "generate:propmap": "node scripts/generate-propmap-data.mjs",
+    "prepublishOnly": "npm run build",
     "examples:discover": "ts-node --project tsconfig.examples.json examples/discover.ts",
     "examples:read": "ts-node --project tsconfig.examples.json examples/read.ts",
     "examples:monitor": "ts-node --project tsconfig.examples.json examples/monitor.ts",
@@ -19,10 +34,12 @@
     "wing",
     "audio",
     "mixer",
+    "osc",
+    "midi",
     "typescript",
     "node"
   ],
-  "author": "",
+  "author": "Masanori Fujita <masanori@fujita.de>",
   "license": "MIT",
   "engines": {
     "node": ">=18"
