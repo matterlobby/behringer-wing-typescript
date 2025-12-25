@@ -46,7 +46,6 @@
   },
   "files": [
     "dist",
-    "data/propmap.jsonl",
     "README.md"
   ],
   "devDependencies": {
