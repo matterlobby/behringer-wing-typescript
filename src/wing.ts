@@ -6,6 +6,8 @@ import { getIdToDefs, getNameToDef, getNameToId } from './propmap';
 
 const DATA_KEEP_ALIVE_MS = 7_000;
 const METERS_KEEP_ALIVE_MS = 3_000;
+const DEFAULT_CONNECT_TIMEOUT_MS = 5_000;
+const WING_PORT = 2222;
 
 /**
  * A single console that responded to discovery.
@@ -16,6 +18,16 @@ export interface DiscoveryInfo {
   model: string;
   serial: string;
   firmware: string;
+}
+
+/**
+ * Options controlling how {@link Wing.connect} establishes a session.
+ */
+export interface WingConnectOptions {
+  /**
+   * Hard timeout in milliseconds for the TCP connect phase. Defaults to 5000.
+   */
+  connectTimeout?: number;
 }
 
 /**
@@ -194,7 +206,10 @@ export class Wing {
   /**
    * Connects to the first discovered mixer or the provided host/IP and performs the handshake.
    */
-  public static async connect(hostOrIp?: string): Promise<Wing> {
+  public static async connect(): Promise<Wing>;
+  public static async connect(hostOrIp: string): Promise<Wing>;
+  public static async connect(hostOrIp: string, options: WingConnectOptions): Promise<Wing>;
+  public static async connect(hostOrIp?: string, options: WingConnectOptions = {}): Promise<Wing> {
     let target = hostOrIp;
     if (!target) {
       const devices = await Wing.scan(true);
@@ -203,7 +218,7 @@ export class Wing {
       }
       target = devices[0].ip;
     }
-    const socket = await Wing.openSocket(target);
+    const socket = await Wing.openSocket(target, options);
     // Constructor is private: only allow instances that went through the handshake.
     return new Wing(socket);
   }
@@ -211,18 +226,77 @@ export class Wing {
   /**
    * Opens the TCP socket and writes the initial handshake bytes.
    */
-  private static openSocket(host: string): Promise<net.Socket> {
+  private static openSocket(host: string, options: WingConnectOptions): Promise<net.Socket> {
+    const connectTimeout = Wing.normalizeConnectTimeout(options.connectTimeout);
     return new Promise((resolve, reject) => {
-      const socket = net.createConnection({ host, port: 2222 }, () => {
+      let settled = false;
+      let timer: NodeJS.Timeout | undefined;
+
+      const socket = net.createConnection({ host, port: WING_PORT });
+
+      const cleanup = () => {
+        if (timer) {
+          clearTimeout(timer);
+          timer = undefined;
+        }
+        socket.removeListener('connect', onConnect);
+        socket.removeListener('error', onError);
+      };
+
+      const settle = (callback: () => void) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        callback();
+      };
+
+      const onConnect = () => {
         socket.setNoDelay(true);
         socket.write(Buffer.from([0xdf, 0xd1]));
-        resolve(socket);
-      });
-      socket.on('error', (err) => {
+        settle(() => resolve(socket));
+      };
+
+      const onError = (err: Error) => {
         socket.destroy();
-        reject(err);
-      });
+        settle(() => reject(err));
+      };
+
+      const onTimeout = () => {
+        const err = Wing.createConnectTimeoutError(host, WING_PORT, connectTimeout);
+        socket.destroy(err);
+        settle(() => reject(err));
+      };
+
+      socket.once('connect', onConnect);
+      socket.once('error', onError);
+
+      timer = setTimeout(onTimeout, connectTimeout);
+      timer.unref?.();
     });
+  }
+
+  /**
+   * Validates the configured TCP connect timeout and falls back to the default.
+   */
+  private static normalizeConnectTimeout(connectTimeout?: number): number {
+    if (connectTimeout === undefined) {
+      return DEFAULT_CONNECT_TIMEOUT_MS;
+    }
+    if (!Number.isFinite(connectTimeout) || connectTimeout <= 0) {
+      throw new TypeError('Wing connectTimeout must be a positive number');
+    }
+    return Math.floor(connectTimeout);
+  }
+
+  /**
+   * Builds a consistent timeout error for failed TCP connection attempts.
+   */
+  private static createConnectTimeoutError(host: string, port: number, timeout: number): Error {
+    const err = new Error(`Timed out connecting to Wing at ${host}:${port} after ${timeout}ms`);
+    (err as Error & { code?: string }).code = 'WING_CONNECT_TIMEOUT';
+    return err;
   }
 
   /**

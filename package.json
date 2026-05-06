@@ -1,6 +1,6 @@
 {
   "name": "behringer-wing",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "TypeScript client for the Behringer Wing digital mixer",
   "repository": {
     "type": "git",
@@ -24,6 +24,7 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist",
     "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test test/**/*.test.js",
     "generate:propmap": "node scripts/generate-propmap-data.mjs",
     "prepublishOnly": "npm run build",
     "examples:discover": "ts-node --project tsconfig.examples.json examples/discover.ts",

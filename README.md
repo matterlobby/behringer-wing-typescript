@@ -27,7 +27,8 @@ infrastructure.
 ### Discover consoles
 
 `Wing.connect()` performs a discovery scan automatically if you do not provide a host/IP. Use
-`Wing.scan()` when you want to list available consoles or pick a specific one.
+`Wing.scan()` when you want to list available consoles or pick a specific one. TCP connection
+attempts are bounded by a hard timeout of 5000 ms by default.
 
 ```ts
 import { Wing } from 'behringer-wing';
@@ -38,6 +39,26 @@ async function listConsoles() {
     console.log(`${device.name} @ ${device.ip} (${device.model})`);
   });
 }
+```
+
+### Configure the TCP connect timeout
+
+Discovery and TCP connection failures are intentionally kept separate. `Wing.scan()` keeps its
+existing discovery timing, while `Wing.connect()` enforces a hard timeout for the TCP connect
+phase.
+
+```ts
+import { Wing } from 'behringer-wing';
+
+const wing = await Wing.connect('192.168.1.50', {
+  connectTimeout: 3000,
+});
+```
+
+If the TCP connection does not complete in time, `Wing.connect()` rejects with an error similar to:
+
+```txt
+Timed out connecting to Wing at 192.168.1.50:2222 after 3000ms
 ```
 
 ### Read an OSC parameter
@@ -116,6 +137,7 @@ import {
   MeterRead,
   WingResponse,
   DiscoveryInfo,
+  WingConnectOptions,
 } from 'behringer-wing';
 ```
 
@@ -125,8 +147,10 @@ import {
 
 - `Wing.scan(stopOnFirst?: boolean, timeout?: number): Promise<DiscoveryInfo[]>`
   Broadcasts discovery probes and returns responding consoles.
-- `Wing.connect(hostOrIp?: string): Promise<Wing>`
-  Connects to a console (or the first discovered one).
+- `Wing.connect(): Promise<Wing>`
+- `Wing.connect(hostOrIp: string): Promise<Wing>`
+- `Wing.connect(hostOrIp: string, options: WingConnectOptions): Promise<Wing>`
+  Connects to a console (or the first discovered one) and enforces a hard TCP connect timeout.
 - `Wing.nameToId(fullname: string): number | undefined`
   Converts a path to a node id using the bundled property map.
 - `Wing.nameToDef(fullname: string): WingNodeDef | undefined`
@@ -164,6 +188,7 @@ import {
 ### Types
 
 - `DiscoveryInfo`: discovery metadata from `Wing.scan`.
+- `WingConnectOptions`: options for `Wing.connect` (`connectTimeout` in milliseconds).
 - `WingResponse`: union of frames returned by `read()`.
 - `MeterRequest`: request descriptor for `requestMeter`.
 - `MeterRead`: meter values returned by `readMeters`.
